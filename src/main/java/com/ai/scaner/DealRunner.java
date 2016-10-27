@@ -27,7 +27,7 @@ public class DealRunner implements Runnable{
 				if(record!=null){
 					this.dealService.deal(record);
 				}
-			} catch (InterruptedException e) {
+			} catch (Exception e) {
 				e.printStackTrace();
 				LOG.error("从队列取数据异常");
 			}
