@@ -29,7 +29,7 @@ public class DealRunner implements Runnable{
 				}
 			} catch (Exception e) {
 				e.printStackTrace();
-				LOG.error("从队列取数据异常");
+				LOG.error("从队列取数据异常:",e);
 			}
 		}
 		
