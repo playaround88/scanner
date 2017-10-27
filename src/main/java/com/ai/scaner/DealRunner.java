@@ -1,42 +1,39 @@
 package com.ai.scaner;
 
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.TimeUnit;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class DealRunner implements Runnable{
+public class DealRunner extends Thread{
 	private static final Logger LOG=LoggerFactory.getLogger(DealRunner.class);
-	private int index=0;
 	private ScanConfig config;
+	private BlockingQueue<Object> queue;
 	private IDealService dealService;
-	private volatile boolean startFlag=true;
+	private volatile boolean loop=true;
 	
 
-	public DealRunner(int i, ScanConfig config) {
-		this.index=i;
+	public DealRunner( ScanConfig config,BlockingQueue<Object> queue) {
 		this.config=config;
+		this.queue=queue;
 		this.dealService=config.getDealService();
 	}
 
 	@Override
 	public void run() {
-		while(startFlag){
+		while(loop){
 			try {
-				Object record=config.getQueues().get(index).poll(this.config.getBlockTimeout(), TimeUnit.SECONDS);
-				if(record!=null){
-					this.dealService.deal(record);
-				}
+				Object record=this.queue.take();
+				this.dealService.deal(record);
 			} catch (Exception e) {
-				e.printStackTrace();
 				LOG.error("从队列取数据异常:",e);
 			}
 		}
-		
 	}
 	
 	public void shutdown(){
-		this.startFlag=false;
+		this.loop=false;
 	}
 
 }

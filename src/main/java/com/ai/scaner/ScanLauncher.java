@@ -1,13 +1,9 @@
 package com.ai.scaner;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -18,10 +14,10 @@ import org.slf4j.LoggerFactory;
 public class ScanLauncher {
 	private static final Logger LOG = LoggerFactory.getLogger(ScanLauncher.class);
 	private ScanConfig config;
-	private ScheduledExecutorService scanThread;
-	private ExecutorService pool;
+	private ScanRunner scanRunner;
 	// deal线程句柄，用于关闭线程
 	private List<DealRunner> tasks = new ArrayList<DealRunner>();
+	private BlockingQueue<Object> queue;
 
 	public ScanLauncher(ScanConfig scanConfig) {
 		this.config = scanConfig;
@@ -30,27 +26,29 @@ public class ScanLauncher {
 	 * 初始化方法
 	 */
 	public void init() {
-		LOG.debug("启动数据库扫描线程...");
-		LOG.debug("每次读取条数：" + this.config.getFetchSize());
-		LOG.debug("每次读取间隔：" + this.config.getFetchPeriod() + "s");
+		LOG.info("启动扫描任务："+config.getIdentifier());
+		LOG.debug("扫描任务配置" + config.toString());
+		
+		LOG.debug("创建数据共享队列");
+		this.queue=new ArrayBlockingQueue<Object>(config.getQueueSize());
+		
 		// 启动读取数据操作线程
-		scanThread = Executors.newSingleThreadScheduledExecutor();
-		ScanRunner scanRunner = new ScanRunner(config);
-		scanThread.scheduleAtFixedRate(scanRunner, 0, this.config.getFetchPeriod(), TimeUnit.SECONDS);
+		LOG.debug("启动数据库扫描线程..."+config.getIdentifier());
+		ScanRunner scanRunner = new ScanRunner(config,queue);
+		scanRunner.start();
 		LOG.debug("启动数据库扫描线程...END");
 
 		// ----------------无聊分割线
 
-		LOG.debug("启动推送单处理线程池...");
+		LOG.debug("启动处理线程池..."+config.getIdentifier());
 		LOG.debug("线程池大小：" + this.config.getPoolSize());
 		// 启动一批处理线程
-		pool = Executors.newFixedThreadPool(this.config.getPoolSize());
 		for (int i = 0; i < this.config.getPoolSize(); i++) {
-			DealRunner runner = new DealRunner(i, config);
+			DealRunner runner = new DealRunner(config,queue);
+			runner.start();
 			tasks.add(runner);
-			pool.execute(runner);
 		}
-		LOG.debug("启动推送单处理线程池...END");
+		LOG.debug("启动处理线程池...END");
 	}
 
 	/**
@@ -58,50 +56,24 @@ public class ScanLauncher {
 	 */
 	public void destroy() {
 		LOG.debug("read push thread is shutdown...");
-		// 先关闭数据库取数据线程
-		scanThread.shutdown();
+		// 先关闭数据库扫描数据线程
+		scanRunner.shutdown();
 
-		// XXX 要处理完成所有的队列任务再关闭；遍历读取每个队列的长度；
-		boolean flag = true;
-		while (flag) {
-			Map<Integer, Boolean> result = new HashMap<Integer, Boolean>();
-			for (int i = 0; i < this.config.getPoolSize(); i++) {
-				long len = this.config.getQueues().get(i).size();
-				if (len > 0) {
-					result.put(i, true);
-				}
+		// 要处理完成所有的队列任务再关闭；遍历读取每个队列的长度；
+		LOG.debug("阻塞等待queue中的数据处理完成...");
+		try {
+			while (!this.queue.isEmpty()) {
+				Thread.currentThread().sleep(1000);
 			}
-			// 任何一个为true，就返回true，否则返回false
-			flag = mergeResult(result);
-			if (!flag) {
-				LOG.debug("all push queue was empty!");
-			}
+		} catch (InterruptedException e) {
+			LOG.error("阻塞等待queue中的数据处理完成出现异常，", e);
 		}
 		
-		LOG.debug("shutdown all deal push thread...");
-		//先关闭所有task
+		//关闭所有task
+		LOG.debug("shutdown all deal thread...");
 		for(int i=0;i<tasks.size();i++){
 			tasks.get(i).shutdown();
 		}
-		LOG.debug("shutdown push deal thread pool...");
-		//关闭线程池
-		try {
-			pool.shutdown();
-			pool.awaitTermination(this.config.getBlockTimeout()+2, TimeUnit.SECONDS);
-		} catch (InterruptedException e) {
-			e.printStackTrace();
-		}
-
+		LOG.debug("deal thread all shutdowned!");
 	}
-
-	// 任何一个为true，就返回true，否则返回false
-	private boolean mergeResult(Map<Integer, Boolean> result) {
-		for (Map.Entry<Integer, Boolean> entry : result.entrySet()) {
-			if (entry.getValue()) {
-				return true;
-			}
-		}
-		return false;
-	}
-
 }

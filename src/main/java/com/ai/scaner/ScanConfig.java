@@ -1,51 +1,64 @@
 package com.ai.scaner;
 
 import java.io.Serializable;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.concurrent.LinkedBlockingQueue;
 
 /**
- * 扫描程序的配置封装;
- * 不支持动态修改参数
+ * 扫描程序的配置封装; 不支持动态修改参数
+ * 
  * @author wutb
  *
  */
 public class ScanConfig implements Serializable {
 	private static final long serialVersionUID = 2140695274817677757L;
-	//扫描数据，每次取记录的条数
+	// 扫描任务标识符
+	private String identifier;
+	// 扫描数据，每次取记录的条数
 	private int fetchSize = 100;
-	//扫描周期，单位秒
-	private long fetchPeriod = 20;
-	//处理线程池大小
-	private int poolSize = 10;
-	//处理线程监听队列，阻塞时间
-	private int blockTimeout=10;
+	// 扫描不到数据时，阻塞时间，单位秒
+	private int sleepTime = 10;
+	// 处理线程池大小
+	private int poolSize = 3;
+	// 队列长度
+	private int queueSize = 100;
 	//
 	private IScanService scanService;
 	private IDealService dealService;
-	//数据缓存队列列表
-	private List<LinkedBlockingQueue> queues = new ArrayList<LinkedBlockingQueue>();
 
-	public ScanConfig(int fetchSize, long fetchPeriod, int poolSize, int blockTimeout,
+	//构造函数
+	public ScanConfig(String identifier, int fetchSize, int sleepTime, int poolSize, int queueSize,
 			IScanService scanService, IDealService dealService) {
-		this.fetchSize=fetchSize;
-		this.fetchPeriod=fetchPeriod;
-		this.poolSize=poolSize;
-		this.blockTimeout=blockTimeout;
-		//
-		this.scanService=scanService;
-		this.dealService=dealService;
-		
-		//完成队列列表的初始化
-		for(int i=0;i<poolSize;i++){
-			LinkedBlockingQueue queue=new LinkedBlockingQueue();
-			queues.add(queue);
-		}
+		super();
+		this.identifier = identifier;
+		this.fetchSize = fetchSize;
+		this.sleepTime = sleepTime;
+		this.poolSize = poolSize;
+		this.queueSize = queueSize;
+		this.scanService = scanService;
+		this.dealService = dealService;
 	}
 
-	public List<LinkedBlockingQueue> getQueues() {
-		return queues;
+	public String getIdentifier() {
+		return identifier;
+	}
+
+	public void setIdentifier(String identifier) {
+		this.identifier = identifier;
+	}
+
+	public void setFetchSize(int fetchSize) {
+		this.fetchSize = fetchSize;
+	}
+
+	public void setPoolSize(int poolSize) {
+		this.poolSize = poolSize;
+	}
+
+	public void setScanService(IScanService scanService) {
+		this.scanService = scanService;
+	}
+
+	public void setDealService(IDealService dealService) {
+		this.dealService = dealService;
 	}
 
 	public IScanService getScanService() {
@@ -60,16 +73,31 @@ public class ScanConfig implements Serializable {
 		return fetchSize;
 	}
 
-	public long getFetchPeriod() {
-		return fetchPeriod;
-	}
-
 	public int getPoolSize() {
 		return poolSize;
 	}
 
-	public int getBlockTimeout() {
-		return blockTimeout;
+	public int getSleepTime() {
+		return sleepTime;
 	}
 
+	public void setSleepTime(int sleepTime) {
+		this.sleepTime = sleepTime;
+	}
+
+	public int getQueueSize() {
+		return queueSize;
+	}
+
+	public void setQueueSize(int queueSize) {
+		this.queueSize = queueSize;
+	}
+
+	@Override
+	public String toString() {
+		return "ScanConfig [identifier=" + identifier + ", fetchSize=" + fetchSize + ", sleepTime=" + sleepTime
+				+ ", poolSize=" + poolSize + ", queueSize=" + queueSize + ", scanService=" + scanService
+				+ ", dealService=" + dealService + "]";
+	}
+	
 }
